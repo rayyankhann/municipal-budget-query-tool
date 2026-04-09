@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -26,6 +27,13 @@ SCHEMA;
 
     public function generateSql(string $question): array
     {
+        // Check cache first
+        $cacheKey = 'ollama_sql_' . md5(strtolower(trim($question)));
+        $cached = Cache::get($cacheKey);
+        if ($cached) {
+            return ['sql' => $cached, 'cached' => true];
+        }
+
         $systemPrompt = <<<PROMPT
 You are a SQL query generator for a municipal budget SQLite database.
 
@@ -76,7 +84,10 @@ PROMPT;
                 return ['error' => 'The generated query contains disallowed operations.'];
             }
 
-            return ['sql' => $sql];
+            // Cache for 1 hour
+            Cache::put($cacheKey, $sql, 3600);
+
+            return ['sql' => $sql, 'cached' => false];
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
             Log::warning('Ollama connection failed: ' . $e->getMessage());
             return ['error' => 'Cannot connect to Ollama. Please make sure Ollama is running (ollama serve) and the llama3.2 model is pulled.'];

@@ -1,6 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
+import { ref, onMounted } from 'vue';
 import { Bar, Line } from 'vue-chartjs';
 import {
     Chart as ChartJS,
@@ -25,6 +26,30 @@ const props = defineProps({
     userRole: String,
     departmentName: String,
     isAdmin: Boolean,
+});
+
+// Animated counters
+const animatedAllocated = ref(0);
+const animatedSpent = ref(0);
+const animatedPercent = ref(0);
+
+const animateValue = (refVal, target, duration = 1200) => {
+    const start = 0;
+    const startTime = performance.now();
+    const step = (currentTime) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+        refVal.value = start + (target - start) * eased;
+        if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+};
+
+onMounted(() => {
+    animateValue(animatedAllocated, props.stats.totalAllocated);
+    animateValue(animatedSpent, props.stats.totalSpent);
+    animateValue(animatedPercent, props.stats.percentUsed);
 });
 
 const formatCurrency = (val) => {
@@ -53,18 +78,10 @@ const barChartOptions = {
     maintainAspectRatio: false,
     plugins: {
         legend: { display: false },
-        tooltip: {
-            callbacks: {
-                label: (ctx) => formatCurrency(ctx.raw),
-            },
-        },
+        tooltip: { callbacks: { label: (ctx) => formatCurrency(ctx.raw) } },
     },
     scales: {
-        y: {
-            ticks: {
-                callback: (val) => formatCurrency(val),
-            },
-        },
+        y: { ticks: { callback: (val) => formatCurrency(val) } },
     },
 };
 
@@ -87,18 +104,10 @@ const lineChartOptions = {
     maintainAspectRatio: false,
     plugins: {
         legend: { display: false },
-        tooltip: {
-            callbacks: {
-                label: (ctx) => formatCurrency(ctx.raw),
-            },
-        },
+        tooltip: { callbacks: { label: (ctx) => formatCurrency(ctx.raw) } },
     },
     scales: {
-        y: {
-            ticks: {
-                callback: (val) => formatCurrency(val),
-            },
-        },
+        y: { ticks: { callback: (val) => formatCurrency(val) } },
     },
 };
 </script>
@@ -109,31 +118,31 @@ const lineChartOptions = {
     <AuthenticatedLayout>
         <template #header>
             <div>
-                <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
-                <p class="mt-1 text-sm text-gray-500">{{ departmentName }} &mdash; Fiscal Year 2024</p>
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ departmentName }} &mdash; Fiscal Year 2024</p>
             </div>
         </template>
 
-        <!-- Stat Cards -->
+        <!-- Stat Cards with animated counters -->
         <div class="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-3">
-            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                <p class="text-sm font-medium text-gray-500">Total Budget Allocated</p>
-                <p class="mt-2 text-3xl font-bold text-gray-900">{{ formatCurrency(stats.totalAllocated) }}</p>
+            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Budget Allocated</p>
+                <p class="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{{ formatCurrency(animatedAllocated) }}</p>
             </div>
-            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                <p class="text-sm font-medium text-gray-500">Total Spent</p>
-                <p class="mt-2 text-3xl font-bold text-gray-900">{{ formatCurrency(stats.totalSpent) }}</p>
+            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Spent</p>
+                <p class="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{{ formatCurrency(animatedSpent) }}</p>
             </div>
-            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                <p class="text-sm font-medium text-gray-500">Budget Used</p>
+            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Budget Used</p>
                 <p class="mt-2 text-3xl font-bold" :class="stats.percentUsed > 100 ? 'text-red-600' : stats.percentUsed > 90 ? 'text-amber-600' : 'text-green-600'">
-                    {{ stats.percentUsed }}%
+                    {{ animatedPercent.toFixed(1) }}%
                 </p>
-                <div class="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-200">
+                <div class="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-600">
                     <div
-                        class="h-full rounded-full transition-all"
+                        class="h-full rounded-full transition-all duration-1000"
                         :class="stats.percentUsed > 100 ? 'bg-red-500' : stats.percentUsed > 90 ? 'bg-amber-500' : 'bg-green-500'"
-                        :style="{ width: Math.min(stats.percentUsed, 100) + '%' }"
+                        :style="{ width: Math.min(animatedPercent, 100) + '%' }"
                     ></div>
                 </div>
             </div>
@@ -141,16 +150,16 @@ const lineChartOptions = {
 
         <!-- Charts Row -->
         <div class="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                <h3 class="mb-4 text-lg font-semibold text-gray-800">
+            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                <h3 class="mb-4 text-lg font-semibold text-gray-800 dark:text-gray-200">
                     {{ isAdmin ? 'Spend by Department' : 'Spend by Category' }}
                 </h3>
                 <div class="h-72">
                     <Bar :data="barChartData" :options="barChartOptions" />
                 </div>
             </div>
-            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                <h3 class="mb-4 text-lg font-semibold text-gray-800">Quarterly Spend Trend</h3>
+            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                <h3 class="mb-4 text-lg font-semibold text-gray-800 dark:text-gray-200">Quarterly Spend Trend</h3>
                 <div class="h-72">
                     <Line :data="lineChartData" :options="lineChartOptions" />
                 </div>
@@ -159,22 +168,22 @@ const lineChartOptions = {
 
         <!-- Top Vendors + Quick Link -->
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                <h3 class="mb-4 text-lg font-semibold text-gray-800">Top Vendors by Spend</h3>
+            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                <h3 class="mb-4 text-lg font-semibold text-gray-800 dark:text-gray-200">Top Vendors by Spend</h3>
                 <div class="space-y-3">
                     <div v-for="vendor in topVendors" :key="vendor.vendor" class="flex items-center justify-between">
-                        <span class="text-sm text-gray-700">{{ vendor.vendor }}</span>
-                        <span class="text-sm font-semibold text-gray-900">{{ formatCurrency(vendor.total) }}</span>
+                        <span class="text-sm text-gray-700 dark:text-gray-300">{{ vendor.vendor }}</span>
+                        <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ formatCurrency(vendor.total) }}</span>
                     </div>
                 </div>
             </div>
-            <div class="flex items-center justify-center rounded-xl border border-gray-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-6 shadow-sm">
+            <div class="flex items-center justify-center rounded-xl border border-gray-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-6 shadow-sm dark:border-gray-700 dark:from-blue-950 dark:to-indigo-950">
                 <div class="text-center">
                     <svg class="mx-auto h-12 w-12 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16l2.879-2.879m0 0a3 3 0 104.243-4.242 3 3 0 00-4.243 4.242zM21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <h3 class="mt-3 text-lg font-semibold text-gray-800">Ask a Budget Question</h3>
-                    <p class="mt-1 text-sm text-gray-500">Use natural language to query budget data powered by AI</p>
+                    <h3 class="mt-3 text-lg font-semibold text-gray-800 dark:text-white">Ask a Budget Question</h3>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Use natural language to query budget data powered by AI</p>
                     <Link
                         :href="route('query')"
                         class="mt-4 inline-flex items-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
