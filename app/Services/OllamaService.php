@@ -25,13 +25,18 @@ Relationships:
 - users.department_id -> departments.id
 SCHEMA;
 
-    public function generateSql(string $question): array
+    public function generateSql(string $question, ?int $departmentId = null): array
     {
-        // Check cache first
-        $cacheKey = 'ollama_sql_' . md5(strtolower(trim($question)));
+        // Include departmentId in cache key so admin vs dept head get different results
+        $cacheKey = 'ollama_sql_' . md5(strtolower(trim($question)) . '_dept_' . ($departmentId ?? 'all'));
         $cached = Cache::get($cacheKey);
         if ($cached) {
             return ['sql' => $cached, 'cached' => true];
+        }
+
+        $departmentRule = '';
+        if ($departmentId) {
+            $departmentRule = "\n- IMPORTANT: This user can ONLY see data for department_id = {$departmentId}. You MUST add a WHERE condition filtering by department_id = {$departmentId} on the appropriate table (transactions.department_id, budget_categories.department_id, or departments.id depending on which tables are in the query). Never return data from other departments.";
         }
 
         $systemPrompt = <<<PROMPT
@@ -49,7 +54,7 @@ Rules:
 - For fiscal year data, use fiscal_year column in budget_categories
 - Always alias calculated columns with readable names
 - When asked about spending or spend, query the transactions table amount column
-- When asked about budget or allocated, query the budget_categories allocated_amount column
+- When asked about budget or allocated, query the budget_categories allocated_amount column{$departmentRule}
 PROMPT;
 
         try {

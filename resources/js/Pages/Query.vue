@@ -12,7 +12,7 @@ import {
     CategoryScale,
     LinearScale,
 } from 'chart.js';
-import axios from 'axios';
+const axios = window.axios;
 
 ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale);
 
@@ -27,12 +27,12 @@ const error = ref(null);
 const showHistory = ref(false);
 const queryHistory = ref(props.history || []);
 const suggestions = ref([
-    'How much did we spend on contractors in Q3?',
-    'Which department has the highest total spend?',
-    'Show all transactions over $10,000',
-    'What is the total spend by vendor?',
-    'Which budget categories are over their allocated amount?',
-    'Show spending trends by quarter for each department',
+    'What is the total amount spent by each department?',
+    'Show the top 10 largest transactions with department and vendor names',
+    'Which budget categories have spent more than their allocated amount?',
+    'What is the total spend per quarter for the Police Department?',
+    'List all vendors and how much we paid them in total, sorted highest first',
+    'What is the average transaction amount by department?',
 ]);
 
 onMounted(async () => {

@@ -33,8 +33,13 @@ class QueryController extends Controller
         $user = $request->user();
         $startTime = microtime(true);
 
+        // Pass department_id to Ollama so it generates filtered SQL directly
+        $departmentId = ($user->role === 'department_head' && $user->department_id)
+            ? $user->department_id
+            : null;
+
         $ollama = new OllamaService();
-        $result = $ollama->generateSql($request->input('question'));
+        $result = $ollama->generateSql($request->input('question'), $departmentId);
 
         if (isset($result['error'])) {
             QueryLog::create([
@@ -53,11 +58,6 @@ class QueryController extends Controller
 
         $sql = $result['sql'];
         $cached = $result['cached'] ?? false;
-
-        // For department_head users, inject department filter
-        if ($user->role === 'department_head' && $user->department_id) {
-            $sql = $this->injectDepartmentFilter($sql, $user->department_id);
-        }
 
         try {
             $results = DB::select($sql);
@@ -106,12 +106,12 @@ class QueryController extends Controller
     {
         return response()->json([
             'suggestions' => [
-                'How much did we spend on contractors in Q3?',
-                'Which department has the highest total spend?',
-                'Show all transactions over $10,000',
-                'What is the total spend by vendor?',
-                'Which budget categories are over their allocated amount?',
-                'Show spending trends by quarter for each department',
+                'What is the total amount spent by each department?',
+                'Show the top 10 largest transactions with department and vendor names',
+                'Which budget categories have spent more than their allocated amount?',
+                'What is the total spend per quarter for the Police Department?',
+                'List all vendors and how much we paid them in total, sorted highest first',
+                'What is the average transaction amount by department?',
             ],
         ]);
     }
@@ -154,26 +154,4 @@ class QueryController extends Controller
         return response()->json(['history' => $history]);
     }
 
-    private function injectDepartmentFilter(string $sql, int $departmentId): string
-    {
-        if (preg_match('/\bWHERE\b/i', $sql)) {
-            $sql = preg_replace(
-                '/\bWHERE\b/i',
-                "WHERE (transactions.department_id = {$departmentId} OR budget_categories.department_id = {$departmentId} OR departments.id = {$departmentId}) AND",
-                $sql,
-                1
-            );
-        } else {
-            if (preg_match('/\b(GROUP BY|ORDER BY|LIMIT)\b/i', $sql, $matches, PREG_OFFSET_MATCH)) {
-                $pos = $matches[0][1];
-                $sql = substr($sql, 0, $pos) .
-                    "WHERE (transactions.department_id = {$departmentId} OR budget_categories.department_id = {$departmentId} OR departments.id = {$departmentId}) " .
-                    substr($sql, $pos);
-            } else {
-                $sql .= " WHERE (transactions.department_id = {$departmentId} OR budget_categories.department_id = {$departmentId} OR departments.id = {$departmentId})";
-            }
-        }
-
-        return $sql;
-    }
 }
