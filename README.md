@@ -111,7 +111,20 @@ resources/js/
 
 ## Screenshots
 
-<!-- Add screenshots here -->
+### Dashboard
+Animated stat cards, department spend bar chart, quarterly trend line, and top vendors at a glance.
+
+![Dashboard](screenshots/dashboard.png)
+
+### Budget Query
+Ask questions in plain English -- the AI generates SQL, returns a results table, and auto-renders charts.
+
+![Budget Query](screenshots/query.png)
+
+### Budget Alerts
+Instantly see which categories are over budget, near their limit, or healthy.
+
+![Budget Alerts](screenshots/budget-alerts.png)
 
 ## Note
 
