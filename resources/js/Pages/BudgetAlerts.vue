@@ -1,11 +1,29 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head } from '@inertiajs/vue3';
+import { ref, computed } from 'vue';
 
 const props = defineProps({
     alerts: Array,
     summary: Object,
     isAdmin: Boolean,
+    departments: Array,
+});
+
+const activeFilter = ref(null); // 'over', 'near', 'healthy', or null
+const departmentFilter = ref('');
+
+const toggleFilter = (type) => {
+    activeFilter.value = activeFilter.value === type ? null : type;
+};
+
+const filteredAlerts = computed(() => {
+    let list = props.alerts;
+    if (activeFilter.value === 'over') list = list.filter(a => a.percent_used > 100);
+    else if (activeFilter.value === 'near') list = list.filter(a => a.percent_used >= 90 && a.percent_used <= 100);
+    else if (activeFilter.value === 'healthy') list = list.filter(a => a.percent_used < 90);
+    if (departmentFilter.value) list = list.filter(a => a.department === departmentFilter.value);
+    return list;
 });
 
 const formatCurrency = (val) => {
@@ -21,7 +39,6 @@ const statusColor = (percent) => {
 
 <template>
     <Head title="Budget Alerts" />
-
     <AuthenticatedLayout>
         <template #header>
             <div>
@@ -30,9 +47,11 @@ const statusColor = (percent) => {
             </div>
         </template>
 
-        <!-- Summary Cards -->
+        <!-- Summary Cards (clickable filters) -->
         <div class="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-3">
-            <div class="rounded-xl border border-red-200 bg-red-50 p-5 dark:border-red-800 dark:bg-red-950">
+            <div @click="toggleFilter('over')"
+                class="cursor-pointer rounded-xl border p-5 transition hover:shadow-md"
+                :class="activeFilter === 'over' ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50 dark:bg-red-950' : 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950'">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm font-medium text-red-600 dark:text-red-400">Over Budget</p>
@@ -43,7 +62,9 @@ const statusColor = (percent) => {
                     </div>
                 </div>
             </div>
-            <div class="rounded-xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-800 dark:bg-amber-950">
+            <div @click="toggleFilter('near')"
+                class="cursor-pointer rounded-xl border p-5 transition hover:shadow-md"
+                :class="activeFilter === 'near' ? 'border-amber-500 ring-2 ring-amber-500/30 bg-amber-50 dark:bg-amber-950' : 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950'">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm font-medium text-amber-600 dark:text-amber-400">Near Limit (90%+)</p>
@@ -54,7 +75,9 @@ const statusColor = (percent) => {
                     </div>
                 </div>
             </div>
-            <div class="rounded-xl border border-green-200 bg-green-50 p-5 dark:border-green-800 dark:bg-green-950">
+            <div @click="toggleFilter('healthy')"
+                class="cursor-pointer rounded-xl border p-5 transition hover:shadow-md"
+                :class="activeFilter === 'healthy' ? 'border-green-500 ring-2 ring-green-500/30 bg-green-50 dark:bg-green-950' : 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950'">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm font-medium text-green-600 dark:text-green-400">Healthy</p>
@@ -67,12 +90,24 @@ const statusColor = (percent) => {
             </div>
         </div>
 
+        <!-- Department dropdown filter (admin only) -->
+        <div v-if="isAdmin" class="mb-4 flex items-center gap-3">
+            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Department:</label>
+            <select v-model="departmentFilter"
+                class="rounded-lg border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                <option value="">All Departments</option>
+                <option v-for="dept in departments" :key="dept" :value="dept">{{ dept }}</option>
+            </select>
+            <button v-if="activeFilter || departmentFilter" @click="activeFilter = null; departmentFilter = ''"
+                class="text-xs text-blue-600 hover:underline dark:text-blue-400">Clear filters</button>
+        </div>
+
         <!-- Alerts Table -->
         <div class="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead>
-                        <tr class="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-750">
+                        <tr class="border-b border-gray-200 bg-gray-50 dark:border-gray-700">
                             <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Status</th>
                             <th v-if="isAdmin" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Department</th>
                             <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Category</th>
@@ -83,31 +118,26 @@ const statusColor = (percent) => {
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
-                        <tr v-for="alert in alerts" :key="alert.id" class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <tr v-for="alert in filteredAlerts" :key="alert.id" class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                             <td class="whitespace-nowrap px-6 py-3">
-                                <span :class="[statusColor(alert.percent_used).bg, statusColor(alert.percent_used).text]" class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold">
-                                    {{ statusColor(alert.percent_used).label }}
-                                </span>
+                                <span :class="[statusColor(alert.percent_used).bg, statusColor(alert.percent_used).text]" class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold">{{ statusColor(alert.percent_used).label }}</span>
                             </td>
                             <td v-if="isAdmin" class="whitespace-nowrap px-6 py-3 text-gray-700 dark:text-gray-300">{{ alert.department }}</td>
                             <td class="whitespace-nowrap px-6 py-3 font-medium text-gray-900 dark:text-white">{{ alert.category }}</td>
                             <td class="whitespace-nowrap px-6 py-3 text-right text-gray-700 dark:text-gray-300">{{ formatCurrency(alert.allocated_amount) }}</td>
                             <td class="whitespace-nowrap px-6 py-3 text-right text-gray-700 dark:text-gray-300">{{ formatCurrency(alert.total_spent) }}</td>
-                            <td class="whitespace-nowrap px-6 py-3 text-right font-semibold" :class="statusColor(alert.percent_used).text">
-                                {{ alert.percent_used }}%
-                            </td>
+                            <td class="whitespace-nowrap px-6 py-3 text-right font-semibold" :class="statusColor(alert.percent_used).text">{{ alert.percent_used }}%</td>
                             <td class="px-6 py-3">
                                 <div class="h-2 w-24 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-600">
-                                    <div
-                                        class="h-full rounded-full"
-                                        :class="statusColor(alert.percent_used).badge"
-                                        :style="{ width: Math.min(alert.percent_used, 100) + '%' }"
-                                    ></div>
+                                    <div class="h-full rounded-full" :class="statusColor(alert.percent_used).badge" :style="{ width: Math.min(alert.percent_used, 100) + '%' }"></div>
                                 </div>
                             </td>
                         </tr>
                     </tbody>
                 </table>
+            </div>
+            <div v-if="filteredAlerts.length === 0" class="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                No categories match the current filters.
             </div>
         </div>
     </AuthenticatedLayout>

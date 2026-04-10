@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes pulse-border {
+    0%, 100% { border-color: rgb(239, 68, 68); }
+    50% { border-color: rgb(239, 68, 68, 0.3); }
+}
+
+.animate-pulse-border {
+    animation: pulse-border 2s ease-in-out infinite;
+}
+
 @media print {
     aside, header, nav, .print\:hidden { display: none !important; }
     .sm\:pl-64 { padding-left: 0 !important; }

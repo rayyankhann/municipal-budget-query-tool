@@ -11,6 +11,10 @@ class OllamaService
     private string $baseUrl = 'http://localhost:11434';
     private string $model = 'llama3.2';
 
+    /**
+     * Database schema context passed to the LLM so it understands the table
+     * structure and can generate valid JOINs and WHERE clauses.
+     */
     private string $schemaContext = <<<'SCHEMA'
 Tables:
 - departments(id, name, code, head_name)
@@ -25,20 +29,34 @@ Relationships:
 - users.department_id -> departments.id
 SCHEMA;
 
+    /**
+     * Convert a natural language question into a safe SELECT-only SQL query.
+     *
+     * @param string   $question     The user's plain-English budget question
+     * @param int|null $departmentId If set, the LLM is instructed to scope all
+     *                               results to this department (for dept heads)
+     * @return array{sql?: string, cached?: bool, error?: string}
+     */
     public function generateSql(string $question, ?int $departmentId = null): array
     {
-        // Include departmentId in cache key so admin vs dept head get different results
+        // Cache key includes the department scope so admin and dept-head queries
+        // for the same question produce separate cached entries.
         $cacheKey = 'ollama_sql_' . md5(strtolower(trim($question)) . '_dept_' . ($departmentId ?? 'all'));
         $cached = Cache::get($cacheKey);
         if ($cached) {
             return ['sql' => $cached, 'cached' => true];
         }
 
+        // When a department_id is provided, inject a mandatory filter rule into
+        // the system prompt so the LLM generates the WHERE clause itself (rather
+        // than us trying to patch it into arbitrary SQL after the fact).
         $departmentRule = '';
         if ($departmentId) {
             $departmentRule = "\n- IMPORTANT: This user can ONLY see data for department_id = {$departmentId}. You MUST add a WHERE condition filtering by department_id = {$departmentId} on the appropriate table (transactions.department_id, budget_categories.department_id, or departments.id depending on which tables are in the query). Never return data from other departments.";
         }
 
+        // System prompt: gives the LLM full schema context plus strict rules
+        // to output only a raw SELECT query — no markdown, no explanation.
         $systemPrompt = <<<PROMPT
 You are a SQL query generator for a municipal budget SQLite database.
 
@@ -74,28 +92,33 @@ PROMPT;
 
             $sql = trim($response->json('response', ''));
 
-            // Clean up common LLM artifacts
+            // Strip markdown code fences and trailing semicolons that LLMs
+            // sometimes add despite instructions not to.
             $sql = preg_replace('/^```sql?\s*/i', '', $sql);
             $sql = preg_replace('/\s*```$/', '', $sql);
             $sql = trim($sql, " \t\n\r\0\x0B;");
 
-            // Validate it starts with SELECT
+            // SELECT-only validation: the query must begin with SELECT.
+            // This is the primary safety gate — anything else is rejected.
             if (!preg_match('/^\s*SELECT/i', $sql)) {
-                return ['error' => 'The AI generated an invalid query. Please rephrase your question.'];
+                return ['error' => 'The AI returned an unsafe query. Please rephrase your question.'];
             }
 
-            // Block dangerous statements
+            // Secondary blocklist: reject if any destructive keyword appears
+            // anywhere in the query (even inside a subquery or CTE).
             if (preg_match('/\b(DROP|DELETE|UPDATE|INSERT|ALTER|CREATE|TRUNCATE|EXEC|EXECUTE)\b/i', $sql)) {
-                return ['error' => 'The generated query contains disallowed operations.'];
+                return ['error' => 'The AI returned an unsafe query. Please rephrase your question.'];
             }
 
-            // Cache for 1 hour
+            // Cache the generated SQL for 1 hour to avoid redundant LLM calls
+            // for repeated questions. The cache is keyed by question + dept scope.
             Cache::put($cacheKey, $sql, 3600);
 
             return ['sql' => $sql, 'cached' => false];
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            // Ollama is not running or unreachable on localhost:11434.
             Log::warning('Ollama connection failed: ' . $e->getMessage());
-            return ['error' => 'Cannot connect to Ollama. Please make sure Ollama is running (ollama serve) and the llama3.2 model is pulled.'];
+            return ['error' => 'AI query engine is offline. Make sure Ollama is running locally with: ollama serve'];
         } catch (\Exception $e) {
             Log::error('OllamaService error: ' . $e->getMessage());
             return ['error' => 'An unexpected error occurred while generating the query.'];

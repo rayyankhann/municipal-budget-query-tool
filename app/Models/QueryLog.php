@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class QueryLog extends Model
 {
-    protected $fillable = ['user_id', 'question', 'generated_sql', 'result_count', 'success', 'error_message', 'execution_time_ms'];
+    protected $fillable = ['user_id', 'question', 'generated_sql', 'result_count', 'success', 'error_message', 'execution_time_ms', 'cached'];
 
     protected function casts(): array
     {

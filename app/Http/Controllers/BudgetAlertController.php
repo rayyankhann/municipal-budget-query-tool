@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\BudgetCategory;
+use App\Models\Department;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -37,6 +38,8 @@ class BudgetAlertController extends Controller
         $nearBudget = $alerts->filter(fn($a) => $a->percent_used >= 90 && $a->percent_used <= 100)->count();
         $healthy = $alerts->filter(fn($a) => $a->percent_used < 90)->count();
 
+        $departments = $isAdmin ? Department::orderBy('name')->pluck('name') : [];
+
         return Inertia::render('BudgetAlerts', [
             'alerts' => $alerts,
             'summary' => [
@@ -45,6 +48,7 @@ class BudgetAlertController extends Controller
                 'healthy' => $healthy,
             ],
             'isAdmin' => $isAdmin,
+            'departments' => $departments,
         ]);
     }
 }

@@ -13,6 +13,12 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        // Truncate all seeded tables first so re-running is safe
+        Transaction::truncate();
+        BudgetCategory::truncate();
+        Department::truncate();
+        User::where('email', 'admin@city.gov')->orWhere('email', 'parks@city.gov')->delete();
+
         $departments = [
             ['name' => 'Public Works', 'code' => 'PW', 'head_name' => 'Robert Chen'],
             ['name' => 'Parks & Recreation', 'code' => 'PR', 'head_name' => 'Maria Santos'],
@@ -140,25 +146,28 @@ class DatabaseSeeder extends Seeder
             }
         }
 
-        // Parks & Recreation department for the department_head user
         $parksId = Department::where('code', 'PR')->first()->id;
 
-        User::create([
-            'name' => 'City Administrator',
-            'email' => 'admin@city.gov',
-            'password' => Hash::make('password'),
-            'role' => 'admin',
-            'department_id' => null,
-            'email_verified_at' => now(),
-        ]);
+        User::updateOrCreate(
+            ['email' => 'admin@city.gov'],
+            [
+                'name' => 'City Administrator',
+                'password' => Hash::make('password'),
+                'role' => 'admin',
+                'department_id' => null,
+                'email_verified_at' => now(),
+            ]
+        );
 
-        User::create([
-            'name' => 'Maria Santos',
-            'email' => 'parks@city.gov',
-            'password' => Hash::make('password'),
-            'role' => 'department_head',
-            'department_id' => $parksId,
-            'email_verified_at' => now(),
-        ]);
+        User::updateOrCreate(
+            ['email' => 'parks@city.gov'],
+            [
+                'name' => 'Maria Santos',
+                'password' => Hash::make('password'),
+                'role' => 'department_head',
+                'department_id' => $parksId,
+                'email_verified_at' => now(),
+            ]
+        );
     }
 }

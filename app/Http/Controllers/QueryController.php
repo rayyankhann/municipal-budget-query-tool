@@ -6,6 +6,7 @@ use App\Models\QueryLog;
 use App\Services\OllamaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -33,7 +34,6 @@ class QueryController extends Controller
         $user = $request->user();
         $startTime = microtime(true);
 
-        // Pass department_id to Ollama so it generates filtered SQL directly
         $departmentId = ($user->role === 'department_head' && $user->department_id)
             ? $user->department_id
             : null;
@@ -48,6 +48,7 @@ class QueryController extends Controller
                 'success' => false,
                 'error_message' => $result['error'],
                 'execution_time_ms' => (int) ((microtime(true) - $startTime) * 1000),
+                'cached' => false,
             ]);
 
             return response()->json([
@@ -71,6 +72,7 @@ class QueryController extends Controller
                 'result_count' => count($results),
                 'success' => true,
                 'execution_time_ms' => $executionTime,
+                'cached' => $cached,
             ]);
 
             return response()->json([
@@ -92,9 +94,10 @@ class QueryController extends Controller
                 'success' => false,
                 'error_message' => $e->getMessage(),
                 'execution_time_ms' => $executionTime,
+                'cached' => $cached,
             ]);
 
-            \Illuminate\Support\Facades\Log::error('Budget query failed', ['sql' => $sql, 'error' => $e->getMessage()]);
+            Log::error('Budget query failed', ['sql' => $sql, 'error' => $e->getMessage()]);
 
             return response()->json([
                 'error' => 'The generated query could not be executed. Please try rephrasing your question.',
@@ -127,6 +130,7 @@ class QueryController extends Controller
 
         $columns = json_decode($request->input('columns'), true);
         $results = json_decode($request->input('results'), true);
+        $date = now()->format('Y-m-d');
 
         return new StreamedResponse(function () use ($columns, $results) {
             $handle = fopen('php://output', 'w');
@@ -141,7 +145,7 @@ class QueryController extends Controller
             fclose($handle);
         }, 200, [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="budget-query-results.csv"',
+            'Content-Disposition' => "attachment; filename=\"budget-query-{$date}.csv\"",
         ]);
     }
 
@@ -155,5 +159,4 @@ class QueryController extends Controller
 
         return response()->json(['history' => $history]);
     }
-
 }

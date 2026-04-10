@@ -16,9 +16,7 @@ const axios = window.axios;
 
 ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale);
 
-const props = defineProps({
-    history: Array,
-});
+const props = defineProps({ history: Array });
 
 const question = ref('');
 const loading = ref(false);
@@ -56,20 +54,30 @@ const submitQuery = async () => {
     result.value = null;
     error.value = null;
 
+    const timeout = setTimeout(() => {
+        if (loading.value) {
+            loading.value = false;
+            error.value = 'Query timed out. Try a simpler question.';
+        }
+    }, 15000);
+
     try {
         const res = await axios.post(route('query.run'), { question: question.value });
+        clearTimeout(timeout);
         if (res.data.error) {
             error.value = res.data.error;
             if (res.data.sql) result.value = { sql: res.data.sql, results: [], columns: [] };
         } else {
             result.value = res.data;
         }
-        // Refresh history
         const histRes = await axios.get(route('query.history'));
         queryHistory.value = histRes.data.history;
     } catch (e) {
+        clearTimeout(timeout);
         if (e.response && e.response.status === 429) {
             error.value = 'Rate limit reached. Please wait a moment before trying again.';
+        } else if (e.code === 'ECONNABORTED') {
+            error.value = 'Query timed out. Try a simpler question.';
         } else {
             error.value = 'An error occurred. Please try again.';
         }
@@ -87,9 +95,7 @@ const exportCsv = () => {
 
     const csrf = document.createElement('input');
     csrf.name = '_token';
-    csrf.value = document.querySelector('meta[name="csrf-token"]')?.content
-        || document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1]
-        || '';
+    csrf.value = document.querySelector('meta[name="csrf-token"]')?.content || '';
     form.appendChild(csrf);
 
     const colsInput = document.createElement('input');
@@ -137,6 +143,7 @@ const chartOptions = {
         tooltip: { callbacks: { label: (ctx) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(ctx.raw) } },
     },
     scales: {
+        x: { ticks: { maxRotation: 45, minRotation: 45 } },
         y: { ticks: { callback: (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val) } },
     },
 };
@@ -163,7 +170,6 @@ const timeAgo = (dateStr) => {
 
 <template>
     <Head title="Budget Query" />
-
     <AuthenticatedLayout>
         <template #header>
             <div>
@@ -173,36 +179,20 @@ const timeAgo = (dateStr) => {
         </template>
 
         <div class="mx-auto max-w-5xl">
-            <!-- Query Input -->
             <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                 <form @submit.prevent="submitQuery">
                     <label for="question" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Ask a question about the budget...</label>
                     <div class="mt-2 flex gap-3">
-                        <input
-                            id="question"
-                            v-model="question"
-                            type="text"
+                        <input id="question" v-model="question" type="text"
                             class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 sm:text-sm"
-                            placeholder="e.g. How much did we spend on contractors in Q3?"
-                            :disabled="loading"
-                        />
-                        <button
-                            type="button"
-                            @click="showHistory = !showHistory"
-                            class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-                            title="Query history"
-                        >
+                            placeholder="e.g. How much did we spend on contractors in Q3?" :disabled="loading" />
+                        <button type="button" @click="showHistory = !showHistory"
+                            class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600" title="Query history">
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                         </button>
-                        <button
-                            type="submit"
-                            :disabled="loading || !question.trim()"
-                            class="inline-flex items-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            <svg v-if="loading" class="mr-2 h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                            </svg>
+                        <button type="submit" :disabled="loading || !question.trim()"
+                            class="inline-flex items-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
+                            <svg v-if="loading" class="mr-2 h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
                             {{ loading ? 'Querying...' : 'Ask' }}
                         </button>
                     </div>
@@ -214,16 +204,10 @@ const timeAgo = (dateStr) => {
                         <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Recent Queries</p>
                     </div>
                     <div class="max-h-48 overflow-y-auto divide-y divide-gray-200 dark:divide-gray-600">
-                        <button
-                            v-for="h in queryHistory"
-                            :key="h.id"
-                            @click="replayQuery(h.question)"
-                            class="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition hover:bg-gray-100 dark:hover:bg-gray-600"
-                        >
+                        <button v-for="h in queryHistory" :key="h.id" @click="replayQuery(h.question)"
+                            class="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition hover:bg-gray-100 dark:hover:bg-gray-600">
                             <span class="truncate text-gray-700 dark:text-gray-300">{{ h.question }}</span>
-                            <span class="ml-3 flex-shrink-0 text-xs text-gray-400">
-                                {{ h.result_count }} rows &middot; {{ timeAgo(h.created_at) }}
-                            </span>
+                            <span class="ml-3 flex-shrink-0 text-xs text-gray-400">{{ h.result_count }} rows &middot; {{ timeAgo(h.created_at) }}</span>
                         </button>
                     </div>
                 </div>
@@ -231,45 +215,36 @@ const timeAgo = (dateStr) => {
                     No query history yet. Run a query to get started.
                 </div>
 
-                <!-- Suggestion Chips -->
+                <!-- Suggestions -->
                 <div class="mt-4">
                     <p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">Try these questions</p>
                     <div class="flex flex-wrap gap-2">
-                        <button
-                            v-for="s in suggestions"
-                            :key="s"
-                            @click="useSuggestion(s)"
-                            class="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400 dark:hover:border-blue-500 dark:hover:bg-blue-900/30 dark:hover:text-blue-300"
-                        >
+                        <button v-for="s in suggestions" :key="s" @click="useSuggestion(s)"
+                            class="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400 dark:hover:border-blue-500 dark:hover:bg-blue-900/30 dark:hover:text-blue-300">
                             {{ s }}
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- Loading State -->
+            <!-- Loading -->
             <div v-if="loading" class="mt-6 flex items-center justify-center rounded-xl border border-gray-200 bg-white p-12 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                 <div class="text-center">
-                    <svg class="mx-auto h-10 w-10 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                    </svg>
+                    <svg class="mx-auto h-10 w-10 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
                     <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">Generating SQL and fetching results...</p>
                 </div>
             </div>
 
-            <!-- Error State -->
+            <!-- Error -->
             <div v-if="error && !loading" class="mt-6 rounded-xl border border-red-200 bg-red-50 p-6 dark:border-red-800 dark:bg-red-950">
                 <div class="flex">
-                    <svg class="h-5 w-5 flex-shrink-0 text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-                    </svg>
+                    <svg class="h-5 w-5 flex-shrink-0 text-red-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
                     <div class="ml-3">
                         <h3 class="text-sm font-medium text-red-800 dark:text-red-300">Query Error</h3>
                         <p class="mt-1 text-sm text-red-700 dark:text-red-400">{{ error }}</p>
-                        <p v-if="error.includes('Ollama')" class="mt-2 text-xs text-red-600 dark:text-red-400">
-                            Make sure Ollama is running: <code class="rounded bg-red-100 px-1.5 py-0.5 dark:bg-red-900">ollama serve</code>
-                            and the model is pulled: <code class="rounded bg-red-100 px-1.5 py-0.5 dark:bg-red-900">ollama pull llama3.2</code>
+                        <p v-if="error.includes('offline') || error.includes('Ollama')" class="mt-2 text-xs text-red-600 dark:text-red-400">
+                            Run <code class="rounded bg-red-100 px-1.5 py-0.5 dark:bg-red-900">ollama serve</code> then
+                            <code class="rounded bg-red-100 px-1.5 py-0.5 dark:bg-red-900">ollama pull llama3.2</code>
                         </p>
                     </div>
                 </div>
@@ -277,7 +252,6 @@ const timeAgo = (dateStr) => {
 
             <!-- Results -->
             <div v-if="result && !loading" class="mt-6 space-y-6">
-                <!-- Generated SQL + metadata -->
                 <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                     <div class="mb-3 flex items-center justify-between">
                         <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Generated SQL</h3>
@@ -289,7 +263,6 @@ const timeAgo = (dateStr) => {
                     <pre class="overflow-x-auto rounded-lg bg-slate-800 p-4 text-sm text-green-400"><code>{{ result.sql }}</code></pre>
                 </div>
 
-                <!-- Chart -->
                 <div v-if="hasNumericAmountColumn && chartData && result.results.length > 0" class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                     <h3 class="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Visualization</h3>
                     <div class="h-72">
@@ -297,7 +270,6 @@ const timeAgo = (dateStr) => {
                     </div>
                 </div>
 
-                <!-- Results Table -->
                 <div class="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
                     <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
                         <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Results</h3>
@@ -305,11 +277,8 @@ const timeAgo = (dateStr) => {
                             <span class="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-300">
                                 {{ result.rowCount || result.results.length }} {{ (result.rowCount || result.results.length) === 1 ? 'row' : 'rows' }}
                             </span>
-                            <button
-                                v-if="result.results.length > 0"
-                                @click="exportCsv"
-                                class="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-                            >
+                            <button v-if="result.results.length > 0" @click="exportCsv"
+                                class="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
                                 <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                                 Export CSV
                             </button>
@@ -318,23 +287,19 @@ const timeAgo = (dateStr) => {
                     <div v-if="result.results.length > 0" class="overflow-x-auto">
                         <table class="w-full text-sm">
                             <thead>
-                                <tr class="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-750">
-                                    <th v-for="col in result.columns" :key="col" class="whitespace-nowrap px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                        {{ col.replace(/_/g, ' ') }}
-                                    </th>
+                                <tr class="border-b border-gray-200 bg-gray-50 dark:border-gray-700">
+                                    <th v-for="col in result.columns" :key="col" class="whitespace-nowrap px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{{ col.replace(/_/g, ' ') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                                 <tr v-for="(row, i) in result.results" :key="i" class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                    <td v-for="col in result.columns" :key="col" class="whitespace-nowrap px-6 py-3 text-gray-700 dark:text-gray-300">
-                                        {{ formatCell(row[col]) }}
-                                    </td>
+                                    <td v-for="col in result.columns" :key="col" class="whitespace-nowrap px-6 py-3 text-gray-700 dark:text-gray-300">{{ formatCell(row[col]) }}</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                     <div v-else class="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                        No results returned for this query.
+                        No results found for that query.
                     </div>
                 </div>
             </div>

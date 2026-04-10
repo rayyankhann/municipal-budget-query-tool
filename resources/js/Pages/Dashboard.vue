@@ -1,6 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, onMounted } from 'vue';
 import { Bar, Line } from 'vue-chartjs';
 import {
@@ -28,19 +28,17 @@ const props = defineProps({
     isAdmin: Boolean,
 });
 
-// Animated counters
 const animatedAllocated = ref(0);
 const animatedSpent = ref(0);
 const animatedPercent = ref(0);
+const chartsReady = ref(false);
 
 const animateValue = (refVal, target, duration = 1200) => {
-    const start = 0;
     const startTime = performance.now();
     const step = (currentTime) => {
-        const elapsed = currentTime - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        const eased = 1 - Math.pow(1 - progress, 3); // easeOutCubic
-        refVal.value = start + (target - start) * eased;
+        const progress = Math.min((currentTime - startTime) / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        refVal.value = target * eased;
         if (progress < 1) requestAnimationFrame(step);
     };
     requestAnimationFrame(step);
@@ -50,6 +48,7 @@ onMounted(() => {
     animateValue(animatedAllocated, props.stats.totalAllocated);
     animateValue(animatedSpent, props.stats.totalSpent);
     animateValue(animatedPercent, props.stats.percentUsed);
+    setTimeout(() => { chartsReady.value = true; }, 100);
 });
 
 const formatCurrency = (val) => {
@@ -62,12 +61,8 @@ const barChartData = {
         label: 'Total Spend',
         data: props.spendByGroup.map(i => parseFloat(i.total)),
         backgroundColor: [
-            'rgba(59, 130, 246, 0.8)',
-            'rgba(16, 185, 129, 0.8)',
-            'rgba(245, 158, 11, 0.8)',
-            'rgba(239, 68, 68, 0.8)',
-            'rgba(139, 92, 246, 0.8)',
-            'rgba(236, 72, 153, 0.8)',
+            'rgba(59, 130, 246, 0.8)', 'rgba(16, 185, 129, 0.8)', 'rgba(245, 158, 11, 0.8)',
+            'rgba(239, 68, 68, 0.8)', 'rgba(139, 92, 246, 0.8)', 'rgba(236, 72, 153, 0.8)',
         ],
         borderRadius: 6,
     }],
@@ -81,6 +76,7 @@ const barChartOptions = {
         tooltip: { callbacks: { label: (ctx) => formatCurrency(ctx.raw) } },
     },
     scales: {
+        x: { ticks: { maxRotation: 45, minRotation: 45 } },
         y: { ticks: { callback: (val) => formatCurrency(val) } },
     },
 };
@@ -123,7 +119,7 @@ const lineChartOptions = {
             </div>
         </template>
 
-        <!-- Stat Cards with animated counters -->
+        <!-- Stat Cards -->
         <div class="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-3">
             <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                 <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Budget Allocated</p>
@@ -133,7 +129,12 @@ const lineChartOptions = {
                 <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Spent</p>
                 <p class="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{{ formatCurrency(animatedSpent) }}</p>
             </div>
-            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            <!-- Budget Used card: pulsing red border when over 100%, clickable to /alerts -->
+            <div
+                @click="router.visit(route('alerts'))"
+                class="cursor-pointer rounded-xl border-2 p-6 shadow-sm transition hover:shadow-md dark:bg-gray-800"
+                :class="stats.percentUsed > 100 ? 'animate-pulse-border border-red-500 bg-red-50 dark:bg-red-950/30' : 'border-gray-200 bg-white dark:border-gray-700'"
+            >
                 <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Budget Used</p>
                 <p class="mt-2 text-3xl font-bold" :class="stats.percentUsed > 100 ? 'text-red-600' : stats.percentUsed > 90 ? 'text-amber-600' : 'text-green-600'">
                     {{ animatedPercent.toFixed(1) }}%
@@ -145,6 +146,7 @@ const lineChartOptions = {
                         :style="{ width: Math.min(animatedPercent, 100) + '%' }"
                     ></div>
                 </div>
+                <p class="mt-2 text-xs text-gray-400">Click to view budget alerts</p>
             </div>
         </div>
 
@@ -155,13 +157,20 @@ const lineChartOptions = {
                     {{ isAdmin ? 'Spend by Department' : 'Spend by Category' }}
                 </h3>
                 <div class="h-72">
-                    <Bar :data="barChartData" :options="barChartOptions" />
+                    <!-- Skeleton loader -->
+                    <div v-if="!chartsReady" class="flex h-full items-end gap-3 px-4 pb-4">
+                        <div v-for="i in 6" :key="i" class="flex-1 animate-pulse rounded bg-gray-200 dark:bg-gray-700" :style="{ height: (30 + Math.random() * 60) + '%' }"></div>
+                    </div>
+                    <Bar v-else :data="barChartData" :options="barChartOptions" />
                 </div>
             </div>
             <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                 <h3 class="mb-4 text-lg font-semibold text-gray-800 dark:text-gray-200">Quarterly Spend Trend</h3>
                 <div class="h-72">
-                    <Line :data="lineChartData" :options="lineChartOptions" />
+                    <div v-if="!chartsReady" class="flex h-full items-center justify-center">
+                        <div class="h-full w-full animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <Line v-else :data="lineChartData" :options="lineChartOptions" />
                 </div>
             </div>
         </div>

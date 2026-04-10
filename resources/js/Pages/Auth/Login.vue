@@ -8,12 +8,8 @@ import TextInput from '@/Components/TextInput.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
 defineProps({
-    canResetPassword: {
-        type: Boolean,
-    },
-    status: {
-        type: String,
-    },
+    canResetPassword: { type: Boolean },
+    status: { type: String },
 });
 
 const form = useForm({
@@ -39,45 +35,45 @@ const fillCredentials = (email) => {
         <Head title="Log in" />
 
         <div class="mb-6 text-center">
-            <h2 class="text-xl font-bold text-gray-800">Municipal Budget Tool</h2>
-            <p class="mt-1 text-sm text-gray-500">Sign in to access the budget dashboard</p>
+            <h2 class="text-xl font-bold text-white">Municipal Budget Tool</h2>
+            <p class="mt-1 text-sm text-gray-400">Sign in to access the budget dashboard</p>
         </div>
 
-        <div class="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
-            <p class="mb-3 text-sm font-semibold text-blue-800">Demo Credentials</p>
+        <div class="mb-6 rounded-lg border border-blue-800 bg-blue-950/50 p-4">
+            <p class="mb-3 text-sm font-semibold text-blue-300">Demo Credentials</p>
             <div class="space-y-2">
                 <button
                     type="button"
                     @click="fillCredentials('admin@city.gov')"
-                    class="w-full rounded-md border border-blue-300 bg-white px-3 py-2 text-left text-sm transition hover:bg-blue-100"
+                    class="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-left text-sm transition hover:bg-gray-600"
                 >
-                    <span class="font-medium text-gray-800">Admin</span>
-                    <span class="ml-2 text-gray-500">admin@city.gov / password</span>
-                    <span class="ml-1 inline-block rounded bg-indigo-100 px-2 py-0.5 text-xs text-indigo-700">All Departments</span>
+                    <span class="font-medium text-white">Admin</span>
+                    <span class="ml-2 text-gray-400">admin@city.gov / password</span>
+                    <span class="ml-1 inline-block rounded bg-indigo-900/50 px-2 py-0.5 text-xs text-indigo-300">All Departments</span>
                 </button>
                 <button
                     type="button"
                     @click="fillCredentials('parks@city.gov')"
-                    class="w-full rounded-md border border-blue-300 bg-white px-3 py-2 text-left text-sm transition hover:bg-blue-100"
+                    class="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-left text-sm transition hover:bg-gray-600"
                 >
-                    <span class="font-medium text-gray-800">Dept Head</span>
-                    <span class="ml-2 text-gray-500">parks@city.gov / password</span>
-                    <span class="ml-1 inline-block rounded bg-green-100 px-2 py-0.5 text-xs text-green-700">Parks & Rec</span>
+                    <span class="font-medium text-white">Dept Head</span>
+                    <span class="ml-2 text-gray-400">parks@city.gov / password</span>
+                    <span class="ml-1 inline-block rounded bg-green-900/50 px-2 py-0.5 text-xs text-green-300">Parks & Rec</span>
                 </button>
             </div>
         </div>
 
-        <div v-if="status" class="mb-4 text-sm font-medium text-green-600">
+        <div v-if="status" class="mb-4 text-sm font-medium text-green-400">
             {{ status }}
         </div>
 
         <form @submit.prevent="submit">
             <div>
-                <InputLabel for="email" value="Email" />
+                <InputLabel for="email" value="Email" class="text-gray-300" />
                 <TextInput
                     id="email"
                     type="email"
-                    class="mt-1 block w-full"
+                    class="mt-1 block w-full border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500"
                     v-model="form.email"
                     required
                     autofocus
@@ -87,11 +83,11 @@ const fillCredentials = (email) => {
             </div>
 
             <div class="mt-4">
-                <InputLabel for="password" value="Password" />
+                <InputLabel for="password" value="Password" class="text-gray-300" />
                 <TextInput
                     id="password"
                     type="password"
-                    class="mt-1 block w-full"
+                    class="mt-1 block w-full border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500"
                     v-model="form.password"
                     required
                     autocomplete="current-password"
@@ -102,7 +98,7 @@ const fillCredentials = (email) => {
             <div class="mt-4 block">
                 <label class="flex items-center">
                     <Checkbox name="remember" v-model:checked="form.remember" />
-                    <span class="ms-2 text-sm text-gray-600">Remember me</span>
+                    <span class="ms-2 text-sm text-gray-400">Remember me</span>
                 </label>
             </div>
 
