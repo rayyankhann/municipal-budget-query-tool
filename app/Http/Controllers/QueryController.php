@@ -94,8 +94,10 @@ class QueryController extends Controller
                 'execution_time_ms' => $executionTime,
             ]);
 
+            \Illuminate\Support\Facades\Log::error('Budget query failed', ['sql' => $sql, 'error' => $e->getMessage()]);
+
             return response()->json([
-                'error' => 'Query execution failed: ' . $e->getMessage(),
+                'error' => 'The generated query could not be executed. Please try rephrasing your question.',
                 'sql' => $sql,
                 'question' => $request->input('question'),
             ]);
